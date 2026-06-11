@@ -1,58 +1,82 @@
-create extension if not exists "uuid-ossp";
-
-create table if not exists brands (
-  id uuid primary key default uuid_generate_v4(),
+create table brands (
+  id uuid primary key default gen_random_uuid(),
   name text not null,
-  domain text not null,
+  domain text not null unique,
+  description text,
   audience text,
-  tone text,
+  tone_of_voice text,
+  offer text,
   cta text,
-  created_at timestamptz not null default now()
+  created_at timestamptz default now()
 );
 
-create table if not exists social_accounts (
-  id uuid primary key default uuid_generate_v4(),
-  brand_id uuid not null references brands(id) on delete cascade,
-  platform text not null check (platform in ('linkedin', 'facebook', 'instagram')),
-  display_name text,
-  external_page_id text,
+create table social_accounts (
+  id uuid primary key default gen_random_uuid(),
+  brand_id uuid references brands(id) on delete cascade,
+  platform text not null check (platform in ('linkedin','facebook','instagram')),
+  account_name text,
+  account_external_id text,
   access_token text,
   refresh_token text,
   token_expires_at timestamptz,
-  is_active boolean not null default true,
-  created_at timestamptz not null default now()
+  enabled boolean default true,
+  created_at timestamptz default now()
 );
 
-create table if not exists schedules (
-  id uuid primary key default uuid_generate_v4(),
-  brand_id uuid not null references brands(id) on delete cascade,
-  name text not null,
-  timezone text not null default 'Europe/Amsterdam',
-  times text[] not null default '{}',
-  days_of_week int[] not null default '{1,2,3,4,5,6,0}',
-  platforms text[] not null default '{linkedin,facebook,instagram}',
-  topic_prompts text[] not null default '{}',
-  is_active boolean not null default true,
-  last_run_at timestamptz,
-  created_at timestamptz not null default now()
-);
-
-create table if not exists post_drafts (
-  id uuid primary key default uuid_generate_v4(),
-  brand_id uuid not null references brands(id) on delete cascade,
-  schedule_id uuid references schedules(id) on delete set null,
+create table post_ideas (
+  id uuid primary key default gen_random_uuid(),
+  brand_id uuid references brands(id) on delete cascade,
   topic text not null,
-  platforms text[] not null default '{}',
-  text text not null,
+  goal text default 'leads',
+  status text default 'new' check (status in ('new','generated','sent_for_approval','approved','rejected','published','failed')),
+  created_at timestamptz default now()
+);
+
+create table posts (
+  id uuid primary key default gen_random_uuid(),
+  brand_id uuid references brands(id) on delete cascade,
+  idea_id uuid references post_ideas(id) on delete set null,
+  platform text not null check (platform in ('linkedin','facebook','instagram')),
+  caption text not null,
+  hashtags text[] default '{}',
   image_prompt text,
   image_url text,
-  status text not null default 'draft' check (status in ('draft', 'pending_approval', 'approved', 'rejected', 'published', 'publish_failed')),
-  publish_result jsonb,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  status text default 'draft' check (status in ('draft','approval_requested','approved','rejected','published','failed')),
+  scheduled_at timestamptz,
+  published_at timestamptz,
+  external_post_id text,
+  schedule_id uuid,
+  error text,
+  created_at timestamptz default now()
 );
 
-create index if not exists idx_post_drafts_brand_id on post_drafts(brand_id);
-create index if not exists idx_schedules_brand_id on schedules(brand_id);
+create table approval_events (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid references posts(id) on delete cascade,
+  channel text default 'telegram',
+  message_id text,
+  action text,
+  payload jsonb,
+  created_at timestamptz default now()
+);
 
--- Create a public Supabase Storage bucket named: social-images
+
+create table schedules (
+  id uuid primary key default gen_random_uuid(),
+  brand_id uuid references brands(id) on delete cascade,
+  name text not null,
+  timezone text not null default 'Europe/Amsterdam',
+  times text[] not null default array['07:00'],
+  days_of_week int[] not null default array[1,2,3,4,5,6,0],
+  platforms text[] not null default array['linkedin','facebook','instagram'],
+  topics text[] not null default array['Geef een praktische tip die aansluit bij de doelgroep en verwijs subtiel naar de CTA.'],
+  active boolean default true,
+  auto_publish boolean default false,
+  last_triggered_at timestamptz,
+  last_triggered_key text,
+  created_at timestamptz default now()
+);
+
+alter table posts
+  add constraint posts_schedule_id_fkey
+  foreign key (schedule_id) references schedules(id) on delete set null;

@@ -1,16 +1,15 @@
 import './styles.css';
+import type { Metadata } from 'next';
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'Social AI Publisher',
-  description: 'Multi-brand AI social media publisher with approval flow.'
+  description: 'Multi-brand AI social publishing with Telegram approval.'
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="nl">
-      <body>
-        <main>{children}</main>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

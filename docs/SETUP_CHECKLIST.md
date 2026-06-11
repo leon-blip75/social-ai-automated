@@ -1,39 +1,35 @@
-# Setup checklist
+# Setup checklist voor Social AI Publisher
 
-## 1. GitHub + Vercel
-- Koppel deze repo aan Vercel.
-- Zet alle environment variables uit `.env.example` in Vercel.
+## Fase 1 - Basis online krijgen
+- [ ] GitHub repo maken: social-ai-publisher
+- [ ] ZIP inhoud uploaden
+- [ ] Vercel project aanmaken vanuit GitHub repo
+- [ ] Supabase project aanmaken
+- [ ] `db/schema.sql` uitvoeren in Supabase SQL Editor
+- [ ] Supabase Storage bucket `social-images` aanmaken en public zetten
+- [ ] Vercel env vars invullen
 
-## 2. Supabase
-- Maak project aan.
-- Run `db/schema.sql` in SQL Editor.
-- Maak public storage bucket `social-images`.
-- Kopieer project URL en service role key naar Vercel.
+## Fase 2 - Telegram approval
+- [ ] Bot maken via @BotFather
+- [ ] Bot token in Vercel zetten als `TELEGRAM_BOT_TOKEN`
+- [ ] Chat ID ophalen en zetten als `TELEGRAM_ALLOWED_CHAT_ID`
+- [ ] Random secret zetten als `TELEGRAM_WEBHOOK_SECRET`
+- [ ] `/api/setup/telegram-webhook` aanroepen
+- [ ] Testpost genereren via `/setup`
 
-## 3. OpenAI
-- Maak API key aan.
-- Zet `OPENAI_API_KEY` in Vercel.
+## Fase 3 - OpenAI
+- [ ] OpenAI API key aanmaken
+- [ ] Key in Vercel zetten als `OPENAI_API_KEY`
+- [ ] Tekstgeneratie testen
+- [ ] Afbeeldinggeneratie testen
 
-## 4. Telegram
-- Maak bot via @BotFather.
-- Zet `TELEGRAM_BOT_TOKEN` in Vercel.
-- Haal je chat ID op en zet `TELEGRAM_ALLOWED_CHAT_ID`.
-- Open `/setup` en klik Telegram webhook instellen.
+## Fase 4 - Social publishing
+- [ ] Meta Developer app aanmaken
+- [ ] Facebook Page en Instagram Business/Creator koppelen
+- [ ] Long-lived Page/Instagram token opslaan bij `social_accounts`
+- [ ] LinkedIn Developer app aanmaken
+- [ ] LinkedIn OAuth en author URN opslaan bij `social_accounts`
+- [ ] Eerst testpost publiceren naar één kanaal
 
-## 5. Scheduler
-- Maak schedule aan in `/setup`.
-- Vercel Cron draait elke 15 minuten en checkt of een schedule binnen het venster valt.
-- Voorstellen worden automatisch naar Telegram gestuurd.
-
-## 6. Meta / Instagram / Facebook
-- Maak Meta app.
-- Koppel Facebook Page + Instagram Business/Creator.
-- Voeg redirect URL toe.
-- Vraag benodigde permissions aan.
-- Sla tokens op in `social_accounts`.
-
-## 7. LinkedIn
-- Maak LinkedIn app.
-- Voeg redirect URL toe.
-- Vraag posting permissions aan.
-- Sla token + owner URN op in `social_accounts`.
+## Belangrijk
+Geen secrets committen naar GitHub. Alleen `.env.example` committen.
