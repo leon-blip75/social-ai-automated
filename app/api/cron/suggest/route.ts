@@ -23,12 +23,22 @@ function pickTopic(topics: string[]) {
   return topics[Math.floor(Math.random() * topics.length)];
 }
 
-export async function GET(req: NextRequest) {
+function isAuthorized(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const auth = req.headers.get('authorization');
-    if (auth !== `Bearer ${secret}`) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!secret) return true;
+
+  const auth = req.headers.get('authorization');
+  const querySecret = req.nextUrl.searchParams.get('secret');
+
+  return auth === `Bearer ${secret}` || querySecret === secret;
+}
+
+export async function GET(req: NextRequest) {
+  if (!isAuthorized(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const force = req.nextUrl.searchParams.get('force') === '1';
 
   const { data: schedules, error } = await supabaseAdmin
     .from('schedules')
@@ -43,12 +53,17 @@ export async function GET(req: NextRequest) {
   for (const schedule of schedules || []) {
     const p = localParts(schedule.timezone || 'Europe/Amsterdam');
     const runKey = `${p.dateKey} ${p.timeKey}`;
+    const forceRunKey = `${p.dateKey} ${p.timeKey} force ${Date.now()}`;
     const allowedTime = (schedule.times || []).includes(p.timeKey);
     const allowedDay = (schedule.days_of_week || []).includes(p.weekday);
     const alreadyRan = schedule.last_triggered_key === runKey;
 
-    if (!allowedTime || !allowedDay || alreadyRan) {
-      skipped.push({ id: schedule.id, name: schedule.name, reason: { allowedTime, allowedDay, alreadyRan, runKey } });
+    if (!force && (!allowedTime || !allowedDay || alreadyRan)) {
+      skipped.push({
+        id: schedule.id,
+        name: schedule.name,
+        reason: { allowedTime, allowedDay, alreadyRan, runKey, currentLocalTime: p.timeKey, timezone: schedule.timezone }
+      });
       continue;
     }
 
@@ -62,11 +77,23 @@ export async function GET(req: NextRequest) {
 
     await supabaseAdmin.from('schedules').update({
       last_triggered_at: new Date().toISOString(),
-      last_triggered_key: runKey
+      last_triggered_key: force ? forceRunKey : runKey
     }).eq('id', schedule.id);
 
-    triggered.push({ schedule_id: schedule.id, name: schedule.name, topic, posts: posts.map(p => p.id) });
+    triggered.push({
+      schedule_id: schedule.id,
+      name: schedule.name,
+      topic,
+      posts: posts.map(p => p.id),
+      force
+    });
   }
 
-  return NextResponse.json({ ok: true, triggered, skipped_count: skipped.length });
+  return NextResponse.json({
+    ok: true,
+    force,
+    triggered,
+    skipped_count: skipped.length,
+    skipped: skipped.slice(0, 10)
+  });
 }
