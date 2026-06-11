@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { createAndSendBatchConcept } from '@/lib/generation';
 
 async function answerCallbackQuery(callbackQueryId: string, text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -33,44 +34,95 @@ export async function POST(req: NextRequest) {
     const callback = update.callback_query;
     if (!callback?.data) return NextResponse.json({ ok: true });
 
-    const [action, postId] = String(callback.data).split(':');
+    const [action, id] = String(callback.data).split(':');
     const chatId = callback?.message?.chat?.id;
 
-    if (!postId) {
-      await answerCallbackQuery(callback.id, 'Geen post ID gevonden.');
-      await sendTelegramMessage(chatId, 'Geen post ID gevonden.');
-      return NextResponse.json({ ok: true, error: 'missing post id' });
+    if (!id) {
+      await answerCallbackQuery(callback.id, 'Geen ID gevonden.');
+      await sendTelegramMessage(chatId, 'Geen ID gevonden.');
+      return NextResponse.json({ ok: true, error: 'missing id' });
     }
 
-    await supabaseAdmin.from('approval_events').insert({ post_id: postId, action, payload: update });
-
-    if (action === 'approve') {
-      await supabaseAdmin.from('posts').update({ status: 'approved' }).eq('id', postId);
-      const message = 'Concept goedgekeurd en opgeslagen als approved. Publiceren naar socials koppelen we hierna.';
+    if (action === 'approve_idea') {
+      await supabaseAdmin.from('post_ideas').update({ status: 'approved' }).eq('id', id);
+      await supabaseAdmin.from('posts').update({ status: 'approved' }).eq('idea_id', id);
+      const message = 'Concept goedgekeurd voor LinkedIn, Facebook en Instagram.';
       await answerCallbackQuery(callback.id, message);
       await sendTelegramMessage(chatId, message);
-      return NextResponse.json({ ok: true, action, postId, status: 'approved' });
+      return NextResponse.json({ ok: true, action, ideaId: id, status: 'approved' });
+    }
+
+    if (action === 'reject_idea') {
+      await supabaseAdmin.from('post_ideas').update({ status: 'rejected' }).eq('id', id);
+      await supabaseAdmin.from('posts').update({ status: 'rejected' }).eq('idea_id', id);
+      const message = 'Concept afgekeurd voor alle 3 platformen.';
+      await answerCallbackQuery(callback.id, message);
+      await sendTelegramMessage(chatId, message);
+      return NextResponse.json({ ok: true, action, ideaId: id, status: 'rejected' });
+    }
+
+    if (action === 'regen_idea') {
+      const { data: idea, error: ideaError } = await supabaseAdmin
+        .from('post_ideas')
+        .select('*, brands(*)')
+        .eq('id', id)
+        .single();
+
+      if (ideaError || !idea) {
+        const message = 'Concept niet gevonden voor regenerate.';
+        await answerCallbackQuery(callback.id, message);
+        await sendTelegramMessage(chatId, message);
+        return NextResponse.json({ ok: true, error: 'idea not found' });
+      }
+
+      const { data: posts } = await supabaseAdmin.from('posts').select('*').eq('idea_id', id);
+      const platforms = Array.from(new Set((posts || []).map((p: any) => String(p.platform).toLowerCase())));
+
+      await supabaseAdmin.from('post_ideas').update({ status: 'rejected' }).eq('id', id);
+      await supabaseAdmin.from('posts').update({ status: 'rejected' }).eq('idea_id', id);
+
+      const result = await createAndSendBatchConcept({
+        brand: idea.brands,
+        topic: idea.topic,
+        platforms: platforms.length ? platforms : ['linkedin', 'facebook', 'instagram'],
+        scheduleId: idea.schedule_id || null
+      });
+
+      const message = `Nieuwe variant gemaakt voor: ${idea.topic}`;
+      await answerCallbackQuery(callback.id, message);
+      await sendTelegramMessage(chatId, message);
+      return NextResponse.json({ ok: true, action, oldIdeaId: id, newIdeaId: result.idea.id });
+    }
+
+    await supabaseAdmin.from('approval_events').insert({ post_id: id, action, payload: update });
+
+    if (action === 'approve') {
+      await supabaseAdmin.from('posts').update({ status: 'approved' }).eq('id', id);
+      const message = 'Concept goedgekeurd en opgeslagen als approved.';
+      await answerCallbackQuery(callback.id, message);
+      await sendTelegramMessage(chatId, message);
+      return NextResponse.json({ ok: true, action, postId: id, status: 'approved' });
     }
 
     if (action === 'reject') {
-      await supabaseAdmin.from('posts').update({ status: 'rejected' }).eq('id', postId);
+      await supabaseAdmin.from('posts').update({ status: 'rejected' }).eq('id', id);
       const message = 'Concept afgekeurd en opgeslagen als rejected.';
       await answerCallbackQuery(callback.id, message);
       await sendTelegramMessage(chatId, message);
-      return NextResponse.json({ ok: true, action, postId, status: 'rejected' });
+      return NextResponse.json({ ok: true, action, postId: id, status: 'rejected' });
     }
 
     if (action === 'regen') {
-      await supabaseAdmin.from('posts').update({ status: 'draft' }).eq('id', postId);
+      await supabaseAdmin.from('posts').update({ status: 'draft' }).eq('id', id);
       const message = 'Regenerate gemarkeerd. Maak opnieuw een concept via de app.';
       await answerCallbackQuery(callback.id, message);
       await sendTelegramMessage(chatId, message);
-      return NextResponse.json({ ok: true, action, postId, status: 'draft' });
+      return NextResponse.json({ ok: true, action, postId: id, status: 'draft' });
     }
 
     await answerCallbackQuery(callback.id, 'Onbekende actie.');
     await sendTelegramMessage(chatId, 'Onbekende actie ontvangen.');
-    return NextResponse.json({ ok: true, ignored: true, action, postId });
+    return NextResponse.json({ ok: true, ignored: true, action, id });
   } catch (error: any) {
     return NextResponse.json({ ok: false, error: error?.message || String(error) }, { status: 200 });
   }
