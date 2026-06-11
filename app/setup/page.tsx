@@ -3,47 +3,73 @@ import { useState } from 'react';
 
 type CheckResult = { ok: boolean; checks: Record<string, boolean>; missing: string[] };
 
+async function readResponse(res: Response) {
+  const text = await res.text();
+  try {
+    const json = text ? JSON.parse(text) : {};
+    return { status: res.status, ok: res.ok, body: json };
+  } catch {
+    return { status: res.status, ok: res.ok, body: text || 'Geen response body' };
+  }
+}
+
 export default function SetupPage() {
   const [checks, setChecks] = useState<CheckResult | null>(null);
   const [result, setResult] = useState<string>('');
 
   async function runChecks() {
-    const res = await fetch('/api/setup/checks');
-    setChecks(await res.json());
+    try {
+      const res = await fetch('/api/setup/checks');
+      setChecks(await res.json());
+    } catch (error: any) {
+      setResult(`Environment check mislukt: ${error?.message || String(error)}`);
+    }
   }
 
   async function createBrand(formData: FormData) {
-    setResult('Bezig met merk opslaan...');
-    const res = await fetch('/api/brands', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Object.fromEntries(formData.entries()))
-    });
-    const json = await res.json();
-    setResult(JSON.stringify(json, null, 2));
+    try {
+      setResult('Bezig met merk opslaan...');
+      const res = await fetch('/api/brands', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.fromEntries(formData.entries()))
+      });
+      const output = await readResponse(res);
+      setResult(JSON.stringify(output, null, 2));
+    } catch (error: any) {
+      setResult(`Merk opslaan mislukt: ${error?.message || String(error)}`);
+    }
   }
 
   async function createSchedule(formData: FormData) {
-    setResult('Bezig met planning opslaan...');
-    const res = await fetch('/api/schedules', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Object.fromEntries(formData.entries()))
-    });
-    const json = await res.json();
-    setResult(JSON.stringify(json, null, 2));
+    try {
+      setResult('Bezig met planning opslaan...');
+      const res = await fetch('/api/schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.fromEntries(formData.entries()))
+      });
+      const output = await readResponse(res);
+      setResult(JSON.stringify(output, null, 2));
+    } catch (error: any) {
+      setResult(`Planning opslaan mislukt: ${error?.message || String(error)}`);
+    }
   }
 
   async function generate(formData: FormData) {
-    setResult('Bezig met post genereren en naar Telegram sturen...');
-    const platforms = String(formData.get('platforms') || 'linkedin,facebook,instagram').split(',').map(s => s.trim());
-    const res = await fetch('/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ domain: formData.get('domain'), topic: formData.get('topic'), platforms })
-    });
-    const json = await res.json();
-    setResult(JSON.stringify(json, null, 2));
+    try {
+      setResult('Bezig met post genereren en naar Telegram sturen...');
+      const platforms = String(formData.get('platforms') || 'linkedin,facebook,instagram').split(',').map(s => s.trim()).filter(Boolean);
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain: formData.get('domain'), topic: formData.get('topic'), platforms })
+      });
+      const output = await readResponse(res);
+      setResult(JSON.stringify(output, null, 2));
+    } catch (error: any) {
+      setResult(`Concept genereren mislukt: ${error?.message || String(error)}`);
+    }
   }
 
   return (
@@ -68,8 +94,6 @@ export default function SetupPage() {
           <p><button className="button" type="submit">Merk opslaan</button></p>
         </form>
       </section>
-
-
 
       <section className="card">
         <h2>Scheduler toevoegen</h2>
