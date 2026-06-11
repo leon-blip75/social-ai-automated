@@ -10,7 +10,7 @@ function createFreeImageUrl(prompt: string) {
 function normalizeCaption(text: string, max = 900) {
   const clean = String(text || '').replace(/\s+/g, ' ').trim();
   if (clean.length <= max) return clean;
-  return clean.slice(0, max - 1).trim() + '…';
+  return clean.slice(0, max - 1).trim() + '...';
 }
 
 function normalizePlatform(platform: unknown) {
@@ -89,4 +89,14 @@ export async function createAndSendBatchConcept(input: {
   });
 
   return { idea, posts: posts || [] };
+}
+
+export async function createAndSendPostConcepts(input: {
+  brand: any;
+  topic: string;
+  platforms: string[];
+  scheduleId?: string | null;
+}) {
+  const result = await createAndSendBatchConcept(input);
+  return result.posts;
 }
