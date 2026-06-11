@@ -1,54 +1,92 @@
 import { supabaseAdmin } from '@/lib/supabase';
-import { generateSocialCopy, generateImageBase64 } from '@/lib/openai';
-import { sendTelegramApproval } from '@/lib/telegram';
+import { generateSocialCopy } from '@/lib/openai';
+import { sendTelegramIdeaApproval } from '@/lib/telegram';
 
-async function uploadImage(brandId: string, platform: string, b64: string) {
-  const bytes = Buffer.from(b64, 'base64');
-  const path = `${brandId}/${Date.now()}-${platform}.png`;
-  const { error } = await supabaseAdmin.storage
-    .from('social-images')
-    .upload(path, bytes, { contentType: 'image/png', upsert: true });
-  if (error) throw error;
-  const { data } = supabaseAdmin.storage.from('social-images').getPublicUrl(path);
-  return data.publicUrl;
+function createFreeImageUrl(prompt: string) {
+  const seed = `${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true&enhance=true`;
 }
 
-export async function createAndSendPostConcepts(input: {
+function normalizeCaption(text: string, max = 900) {
+  const clean = String(text || '').replace(/\s+/g, ' ').trim();
+  if (clean.length <= max) return clean;
+  return clean.slice(0, max - 1).trim() + '…';
+}
+
+function normalizePlatform(platform: unknown) {
+  const value = String(platform || '').trim().toLowerCase();
+  if (['linkedin', 'facebook', 'instagram'].includes(value)) return value;
+  return null;
+}
+
+export async function createAndSendBatchConcept(input: {
   brand: any;
   topic: string;
   platforms: string[];
   scheduleId?: string | null;
 }) {
-  const generated = await generateSocialCopy({ brand: input.brand, topic: input.topic, platforms: input.platforms });
-  const posts = [];
+  const platforms = Array.from(new Set(input.platforms.map(normalizePlatform).filter(Boolean))) as string[];
+  const safePlatforms = platforms.length ? platforms : ['linkedin', 'facebook', 'instagram'];
 
-  for (const item of generated.posts || []) {
-    let imageUrl: string | null = null;
-    if (item.image_prompt) {
-      const b64 = await generateImageBase64(item.image_prompt);
-      if (b64) imageUrl = await uploadImage(input.brand.id, item.platform, b64);
-    }
+  const generated = await generateSocialCopy({
+    brand: input.brand,
+    topic: input.topic,
+    platforms: safePlatforms
+  });
 
-    const { data: post, error } = await supabaseAdmin.from('posts').insert({
+  const postsSource = Array.isArray(generated?.posts) ? generated.posts : [];
+
+  const imagePrompt = [
+    `Modern professional social media image for ${input.brand.name || 'Nixos'}`,
+    `Topic: ${input.topic}`,
+    `Theme: AI automation, business workflows, efficiency, digital transformation`,
+    `Style: premium, clean, modern, realistic, strong composition, suitable for business social media`
+  ].join('. ');
+
+  const imageUrl = createFreeImageUrl(imagePrompt);
+
+  const { data: idea, error: ideaError } = await supabaseAdmin
+    .from('post_ideas')
+    .insert({
       brand_id: input.brand.id,
       schedule_id: input.scheduleId || null,
-      platform: item.platform,
-      caption: item.caption,
-      hashtags: item.hashtags || [],
-      image_prompt: item.image_prompt || null,
+      topic: input.topic,
+      image_prompt: imagePrompt,
+      image_url: imageUrl,
+      status: 'sent_for_approval'
+    })
+    .select('*')
+    .single();
+
+  if (ideaError) throw ideaError;
+
+  const postsToInsert = safePlatforms.map((platform) => {
+    const item = postsSource.find((p: any) => normalizePlatform(p.platform) === platform) || {};
+    return {
+      idea_id: idea.id,
+      brand_id: input.brand.id,
+      schedule_id: input.scheduleId || null,
+      platform,
+      caption: normalizeCaption(item.caption || `${input.topic}\n\n${input.brand.name || 'Nixos'} helpt bedrijven slimmer werken met AI, workflows en automatisering.`),
+      hashtags: Array.isArray(item.hashtags) ? item.hashtags : ['#AI', '#Automatisering', '#Workflow', '#Nixos'],
+      image_prompt: imagePrompt,
       image_url: imageUrl,
       status: 'approval_requested'
-    }).select('*').single();
-    if (error) throw error;
+    };
+  });
 
-    await sendTelegramApproval({
-      postId: post.id,
-      platform: post.platform,
-      caption: post.caption,
-      imageUrl: post.image_url
-    });
-    posts.push(post);
-  }
+  const { data: posts, error: postsError } = await supabaseAdmin
+    .from('posts')
+    .insert(postsToInsert)
+    .select('*');
 
-  return posts;
+  if (postsError) throw postsError;
+
+  await sendTelegramIdeaApproval({
+    brand: input.brand,
+    idea,
+    posts: posts || []
+  });
+
+  return { idea, posts: posts || [] };
 }
