@@ -1,6 +1,12 @@
 import OpenAI from 'openai';
 
-export const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+function getOpenAI() {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error('Missing OPENAI_API_KEY environment variable');
+  }
+  return new OpenAI({ apiKey });
+}
 
 export async function generateSocialCopy(input: {
   brand: any;
@@ -18,7 +24,7 @@ Platforms: ${input.platforms.join(', ')}
 
 Geef geldige JSON terug met array posts: [{platform, caption, hashtags, image_prompt}].`;
 
-  const response = await openai.responses.create({
+  const response = await getOpenAI().responses.create({
     model: process.env.OPENAI_TEXT_MODEL || 'gpt-5-mini',
     input: prompt
   });
@@ -29,7 +35,7 @@ Geef geldige JSON terug met array posts: [{platform, caption, hashtags, image_pr
 }
 
 export async function generateImageBase64(prompt: string) {
-  const result = await openai.images.generate({
+  const result = await getOpenAI().images.generate({
     model: process.env.OPENAI_IMAGE_MODEL || 'gpt-image-2',
     prompt,
     size: '1024x1024'
