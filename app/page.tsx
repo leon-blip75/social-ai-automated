@@ -13,6 +13,11 @@ export default async function Home() {
     .select('*, brands(name, domain)')
     .order('created_at', { ascending: false });
 
+  const { data: socialAccounts } = await supabaseAdmin
+    .from('social_accounts')
+    .select('id, platform, account_name, account_external_id, enabled, created_at, brands(name, domain)')
+    .order('created_at', { ascending: false });
+
   return (
     <main className="container hero">
       <section className="card">
@@ -50,6 +55,38 @@ export default async function Home() {
                     <td style={{ padding: '8px 0', borderTop: '1px solid #334155' }}>{brand.domain}</td>
                     <td style={{ padding: '8px 0', borderTop: '1px solid #334155' }}>{brand.tone_of_voice || '-'}</td>
                     <td style={{ padding: '8px 0', borderTop: '1px solid #334155' }}>{brand.cta || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="card" style={{ marginTop: 24 }}>
+        <h2>Aangemelde platform setups</h2>
+        {!socialAccounts?.length ? (
+          <p>Nog geen LinkedIn, Facebook of Instagram setup opgeslagen.</p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '8px 0' }}>Brand</th>
+                  <th style={{ textAlign: 'left', padding: '8px 0' }}>Platform</th>
+                  <th style={{ textAlign: 'left', padding: '8px 0' }}>Naam</th>
+                  <th style={{ textAlign: 'left', padding: '8px 0' }}>Account ID / URN</th>
+                  <th style={{ textAlign: 'left', padding: '8px 0' }}>Actief</th>
+                </tr>
+              </thead>
+              <tbody>
+                {socialAccounts?.map((account: any) => (
+                  <tr key={account.id}>
+                    <td style={{ padding: '8px 0', borderTop: '1px solid #334155' }}>{account.brands?.name || '-'} ({account.brands?.domain || '-'})</td>
+                    <td style={{ padding: '8px 0', borderTop: '1px solid #334155' }}>{account.platform}</td>
+                    <td style={{ padding: '8px 0', borderTop: '1px solid #334155' }}>{account.account_name || '-'}</td>
+                    <td style={{ padding: '8px 0', borderTop: '1px solid #334155' }}>{account.account_external_id || '-'}</td>
+                    <td style={{ padding: '8px 0', borderTop: '1px solid #334155' }}>{account.enabled ? 'Ja' : 'Nee'}</td>
                   </tr>
                 ))}
               </tbody>
