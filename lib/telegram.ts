@@ -39,10 +39,36 @@ function buildIdeaCaption(payload: { brand: any; idea: any; posts: any[] }) {
   ].join('\n').slice(0, 900);
 }
 
-function fallbackImageUrl(brandName: string, topic: string) {
-  const shortTopic = cleanTopic(topic).slice(0, 50);
-  const title = encodeURIComponent(`${brandName || 'Nixos'}\n${shortTopic}`);
-  return `https://placehold.co/1024x1024/0f172a/e2e8f0/png?text=${title}`;
+function fallbackImageUrl(topic: string) {
+  const t = cleanTopic(topic).toLowerCase();
+  const day = Math.floor(Date.now() / 86400000);
+
+  const groups: Record<string, string[]> = {
+    dashboard: [
+      'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1024&h=1024&q=80',
+      'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1024&h=1024&q=80'
+    ],
+    entrepreneur: [
+      'https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1024&h=1024&q=80',
+      'https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&fit=crop&w=1024&h=1024&q=80'
+    ],
+    automation: [
+      'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1024&h=1024&q=80',
+      'https://images.unsplash.com/photo-1559136555-9303baea8ebd?auto=format&fit=crop&w=1024&h=1024&q=80',
+      'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=1024&h=1024&q=80'
+    ],
+    workflow: [
+      'https://images.unsplash.com/photo-1553877522-43269d4ea984?auto=format&fit=crop&w=1024&h=1024&q=80',
+      'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1024&h=1024&q=80'
+    ]
+  };
+
+  let list = groups.workflow;
+  if (t.includes('dashboard') || t.includes('data')) list = groups.dashboard;
+  else if (t.includes('ondernemer') || t.includes('ondernemers') || t.includes('tip')) list = groups.entrepreneur;
+  else if (t.includes('ai') || t.includes('proces') || t.includes('workflow') || t.includes('automatis')) list = groups.automation;
+
+  return list[day % list.length];
 }
 
 async function sendMessageWithMarkup(text: string, reply_markup?: any) {
@@ -113,7 +139,7 @@ export async function sendTelegramIdeaApproval(payload: {
   if (!token || !chatId) return;
 
   const caption = buildIdeaCaption(payload);
-  const fallback = fallbackImageUrl(payload.brand.name, payload.idea.topic);
+  const fallback = fallbackImageUrl(payload.idea.topic);
   const reply_markup = {
     inline_keyboard: [
       [
@@ -131,16 +157,24 @@ export async function sendTelegramIdeaApproval(payload: {
       return await sendPhotoUpload(payload.idea.image_url, caption, reply_markup);
     } catch (error) {
       try {
-        return await sendPhotoByUrl(fallback, caption, reply_markup);
+        return await sendPhotoUpload(fallback, caption, reply_markup);
       } catch (fallbackError) {
-        return sendMessageWithMarkup(`${caption}\n\nAI-afbeelding kon nu niet worden opgehaald.`, reply_markup);
+        try {
+          return await sendPhotoByUrl(fallback, caption, reply_markup);
+        } catch (fallbackUrlError) {
+          return sendMessageWithMarkup(`${caption}\n\nAI-afbeelding kon nu niet worden opgehaald.`, reply_markup);
+        }
       }
     }
   }
 
   try {
-    return await sendPhotoByUrl(fallback, caption, reply_markup);
+    return await sendPhotoUpload(fallback, caption, reply_markup);
   } catch (error) {
-    return sendMessageWithMarkup(caption, reply_markup);
+    try {
+      return await sendPhotoByUrl(fallback, caption, reply_markup);
+    } catch (fallbackError) {
+      return sendMessageWithMarkup(caption, reply_markup);
+    }
   }
 }
