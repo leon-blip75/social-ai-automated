@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { createAndSendBatchConcept } from '@/lib/generation';
+import { publishPost } from '@/lib/publishers';
 
 async function answerCallbackQuery(callbackQueryId: string, text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -24,6 +25,81 @@ async function sendTelegramMessage(chatId: number | string | undefined, text: st
   }).catch(() => null);
 }
 
+async function publishApprovedIdeaPosts(ideaId: string) {
+  const { data: posts, error: postsError } = await supabaseAdmin
+    .from('posts')
+    .select('*')
+    .eq('idea_id', ideaId)
+    .order('platform');
+
+  if (postsError) throw postsError;
+
+  const results: { platform: string; ok: boolean; message: string }[] = [];
+
+  for (const post of posts || []) {
+    const { data: account } = await supabaseAdmin
+      .from('social_accounts')
+      .select('*')
+      .eq('brand_id', post.brand_id)
+      .eq('platform', post.platform)
+      .eq('enabled', true)
+      .maybeSingle();
+
+    if (!account) {
+      await supabaseAdmin
+        .from('posts')
+        .update({ status: 'approved', error: `No enabled ${post.platform} account connected` })
+        .eq('id', post.id);
+
+      results.push({ platform: post.platform, ok: false, message: 'nog niet gekoppeld' });
+      continue;
+    }
+
+    try {
+      const result = await publishPost({
+        platform: post.platform,
+        caption: post.caption,
+        imageUrl: post.image_url,
+        account
+      });
+
+      await supabaseAdmin
+        .from('posts')
+        .update({
+          status: 'published',
+          published_at: new Date().toISOString(),
+          external_post_id: result.external_post_id || result.id || null,
+          error: null
+        })
+        .eq('id', post.id);
+
+      results.push({ platform: post.platform, ok: true, message: 'gepubliceerd' });
+    } catch (error: any) {
+      await supabaseAdmin
+        .from('posts')
+        .update({ status: 'failed', error: error?.message || String(error) })
+        .eq('id', post.id);
+
+      results.push({ platform: post.platform, ok: false, message: 'publicatie mislukt' });
+    }
+  }
+
+  const allPublished = results.length > 0 && results.every((r) => r.ok);
+  await supabaseAdmin
+    .from('post_ideas')
+    .update({ status: allPublished ? 'published' : 'approved' })
+    .eq('id', ideaId);
+
+  return results;
+}
+
+function formatPublishResults(results: { platform: string; ok: boolean; message: string }[]) {
+  if (!results.length) return 'Geen posts gevonden om te publiceren.';
+  return results
+    .map((r) => `${r.ok ? '✅' : '⚠️'} ${r.platform}: ${r.message}`)
+    .join('\n');
+}
+
 export async function POST(req: NextRequest) {
   try {
     const expected = process.env.TELEGRAM_WEBHOOK_SECRET;
@@ -45,11 +121,14 @@ export async function POST(req: NextRequest) {
 
     if (action === 'approve_idea') {
       await supabaseAdmin.from('post_ideas').update({ status: 'approved' }).eq('id', id);
-      await supabaseAdmin.from('posts').update({ status: 'approved' }).eq('idea_id', id);
-      const message = 'Concept goedgekeurd voor LinkedIn, Facebook en Instagram.';
-      await answerCallbackQuery(callback.id, message);
+      await supabaseAdmin.from('posts').update({ status: 'approved', error: null }).eq('idea_id', id);
+
+      await answerCallbackQuery(callback.id, 'Goedgekeurd. Ik probeer nu te publiceren...');
+
+      const results = await publishApprovedIdeaPosts(id);
+      const message = `Concept goedgekeurd.\n\nPublicatie-resultaat:\n${formatPublishResults(results)}`;
       await sendTelegramMessage(chatId, message);
-      return NextResponse.json({ ok: true, action, ideaId: id, status: 'approved' });
+      return NextResponse.json({ ok: true, action, ideaId: id, results });
     }
 
     if (action === 'reject_idea') {
