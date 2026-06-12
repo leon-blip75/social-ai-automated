@@ -56,6 +56,24 @@ export default function SetupPage() {
     }
   }
 
+  async function savePlatform(formData: FormData) {
+    try {
+      setResult('Bezig met platform setup opslaan...');
+      const values: any = Object.fromEntries(formData.entries());
+      values.access_token = values.platform_key;
+      delete values.platform_key;
+      const res = await fetch('/api/social-accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values)
+      });
+      const output = await readResponse(res);
+      setResult(JSON.stringify(output, null, 2));
+    } catch (error: any) {
+      setResult(`Platform setup opslaan mislukt: ${error?.message || String(error)}`);
+    }
+  }
+
   async function generate(formData: FormData) {
     try {
       setResult('Bezig met post genereren en naar Telegram sturen...');
@@ -114,27 +132,48 @@ export default function SetupPage() {
       <section className="grid">
         <div className="card">
           <h2>LinkedIn setup</h2>
-          <p>Gebruik voor Nixos je Company Page ID uit de admin-URL. Voor jouw pagina is de URN:</p>
+          <p>Voor jouw pagina is de URN:</p>
           <pre>urn:li:organization:116020186</pre>
-          <p>Benodigd in social_accounts: platform <strong>linkedin</strong>, account_external_id = bovenstaande URN, plus een LinkedIn OAuth token met publish rechten.</p>
           <p><a href="https://www.linkedin.com/developers/apps" target="_blank">LinkedIn Developer Portal</a></p>
           <p><a href="https://www.linkedin.com/company/116020186/admin/dashboard/" target="_blank">Jouw LinkedIn company admin</a></p>
+          <form action={savePlatform}>
+            <input type="hidden" name="platform" value="linkedin" />
+            <label>Domein</label><input name="domain" defaultValue="nixos.online" required />
+            <label>Naam</label><input name="account_name" defaultValue="Nixos LinkedIn" />
+            <label>Account external ID / URN</label><input name="account_external_id" defaultValue="urn:li:organization:116020186" required />
+            <label>LinkedIn key</label><textarea name="platform_key" placeholder="Plak hier je LinkedIn waarde" required />
+            <p><button className="button" type="submit">LinkedIn opslaan</button></p>
+          </form>
         </div>
 
         <div className="card">
           <h2>Facebook setup</h2>
-          <p>Gebruik de Facebook Page ID als account_external_id en een Page token voor publicatie.</p>
-          <p>Benodigd in social_accounts: platform <strong>facebook</strong>, account_external_id = Page ID.</p>
+          <p>Gebruik de Facebook Page ID als account_external_id.</p>
           <p><a href="https://developers.facebook.com/tools/explorer/" target="_blank">Meta Graph API Explorer</a></p>
           <p><a href="https://business.facebook.com/settings/pages" target="_blank">Meta Business Pages</a></p>
+          <form action={savePlatform}>
+            <input type="hidden" name="platform" value="facebook" />
+            <label>Domein</label><input name="domain" defaultValue="nixos.online" required />
+            <label>Naam</label><input name="account_name" defaultValue="Nixos Facebook" />
+            <label>Facebook Page ID</label><input name="account_external_id" placeholder="Bijv. 123456789012345" required />
+            <label>Facebook Page key</label><textarea name="platform_key" placeholder="Plak hier je Facebook waarde" required />
+            <p><button className="button" type="submit">Facebook opslaan</button></p>
+          </form>
         </div>
 
         <div className="card">
           <h2>Instagram setup</h2>
-          <p>Instagram publicatie werkt via een Instagram Business/Creator account dat gekoppeld is aan een Facebook Page.</p>
-          <p>Benodigd in social_accounts: platform <strong>instagram</strong>, account_external_id = Instagram Business User ID.</p>
+          <p>Gebruik de Instagram Business User ID als account_external_id.</p>
           <p><a href="https://developers.facebook.com/tools/explorer/" target="_blank">Meta Graph API Explorer</a></p>
           <p><a href="https://business.facebook.com/settings/instagram-accounts" target="_blank">Meta Business Instagram accounts</a></p>
+          <form action={savePlatform}>
+            <input type="hidden" name="platform" value="instagram" />
+            <label>Domein</label><input name="domain" defaultValue="nixos.online" required />
+            <label>Naam</label><input name="account_name" defaultValue="Nixos Instagram" />
+            <label>Instagram Business User ID</label><input name="account_external_id" placeholder="Bijv. 17841400000000000" required />
+            <label>Instagram/Meta key</label><textarea name="platform_key" placeholder="Plak hier je Meta waarde" required />
+            <p><button className="button" type="submit">Instagram opslaan</button></p>
+          </form>
         </div>
       </section>
 
