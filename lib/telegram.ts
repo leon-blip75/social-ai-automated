@@ -1,10 +1,10 @@
 const token = process.env.TELEGRAM_BOT_TOKEN;
 const chatId = process.env.TELEGRAM_ALLOWED_CHAT_ID;
 
-function cut(text: string, max = 220) {
+function cut(text: string, max = 140) {
   const clean = String(text || '').replace(/\s+/g, ' ').trim();
   if (clean.length <= max) return clean;
-  return clean.slice(0, max - 1).trim() + '...';
+  return clean.slice(0, max - 3).trim() + '...';
 }
 
 function findPost(posts: any[], platform: string) {
@@ -13,7 +13,7 @@ function findPost(posts: any[], platform: string) {
 
 function cleanTopic(topic: string) {
   return String(topic || '')
-    .split(',')
+    .split(/[\n,;|]+/)
     .map((part) => part.trim())
     .filter(Boolean)[0] || 'Slimmer werken met AI';
 }
@@ -24,26 +24,23 @@ function buildIdeaCaption(payload: { brand: any; idea: any; posts: any[] }) {
   const instagram = findPost(payload.posts, 'instagram');
   const topic = cleanTopic(payload.idea.topic);
 
-  const text = [
-    `Nieuw social voorstel voor ${payload.brand.name}`,
+  return [
+    `${payload.brand.name} social voorstel`,
     ``,
     `Onderwerp: ${topic}`,
     ``,
-    `LinkedIn:`,
-    cut(linkedin?.caption || '-', 220),
+    `LinkedIn: ${cut(linkedin?.caption || '-')}`,
     ``,
-    `Facebook:`,
-    cut(facebook?.caption || '-', 220),
+    `Facebook: ${cut(facebook?.caption || '-')}`,
     ``,
-    `Instagram:`,
-    cut(instagram?.caption || '-', 220)
-  ].join('\n');
-
-  return text.slice(0, 1024);
+    `Instagram: ${cut(instagram?.caption || '-')}`,
+    ``,
+    `1x goedkeuren = alle 3 opslaan als approved.`
+  ].join('\n').slice(0, 900);
 }
 
 function fallbackImageUrl(brandName: string, topic: string) {
-  const shortTopic = cleanTopic(topic).slice(0, 55);
+  const shortTopic = cleanTopic(topic).slice(0, 50);
   const title = encodeURIComponent(`${brandName || 'Nixos'}\n${shortTopic}`);
   return `https://placehold.co/1024x1024/0f172a/e2e8f0/png?text=${title}`;
 }
