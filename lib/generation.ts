@@ -3,14 +3,16 @@ import { generateSocialCopy } from '@/lib/openai';
 import { sendTelegramIdeaApproval } from '@/lib/telegram';
 
 function createFreeImageUrl(prompt: string) {
-  const seed = `${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+  const dayKey = new Date().toISOString().slice(0, 10);
+  const randomPart = Math.floor(Math.random() * 1000000);
+  const seed = `${dayKey}-${randomPart}`;
   return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true&enhance=true`;
 }
 
 function normalizeCaption(text: string, max = 650) {
   const clean = String(text || '').replace(/\s+/g, ' ').trim();
   if (clean.length <= max) return clean;
-  return clean.slice(0, max - 1).trim() + '...';
+  return clean.slice(0, max - 3).trim() + '...';
 }
 
 function normalizePlatform(platform: unknown) {
@@ -27,6 +29,19 @@ function pickCleanTopic(rawTopic: string) {
 
   if (!parts.length) return 'Praktische automatiseringstip voor ondernemers';
   return parts[Math.floor(Math.random() * parts.length)].slice(0, 120);
+}
+
+function buildRelevantImagePrompt(brandName: string, topic: string) {
+  return [
+    'Create a realistic professional social media image.',
+    'Show 1 to 3 business professionals or entrepreneurs in a modern office environment.',
+    'Include laptops, dashboards, workflow diagrams on screens, digital collaboration or AI tools.',
+    'The scene should visually represent automation, productivity and smarter business processes.',
+    'Style: photorealistic, premium, modern, clean, engaging, natural lighting.',
+    'No text, no letters, no typography, no logos, no watermark, no poster design.',
+    `Brand context: ${brandName || 'Nixos'}.`,
+    `Topic: ${topic}.`
+  ].join(' ');
 }
 
 export async function createAndSendBatchConcept(input: {
@@ -46,14 +61,7 @@ export async function createAndSendBatchConcept(input: {
   });
 
   const postsSource = Array.isArray(generated?.posts) ? generated.posts : [];
-
-  const imagePrompt = [
-    `Modern professional business image for ${input.brand.name || 'Nixos'}`,
-    `Topic: ${topic}`,
-    `AI automation, workflow efficiency, digital business processes`,
-    `Premium clean style, modern office technology, realistic lighting`
-  ].join('. ');
-
+  const imagePrompt = buildRelevantImagePrompt(input.brand.name || 'Nixos', topic);
   const imageUrl = createFreeImageUrl(imagePrompt);
 
   const { data: idea, error: ideaError } = await supabaseAdmin
