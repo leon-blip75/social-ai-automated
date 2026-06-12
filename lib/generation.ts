@@ -7,7 +7,7 @@ function createFreeImageUrl(prompt: string) {
   return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true&enhance=true`;
 }
 
-function normalizeCaption(text: string, max = 900) {
+function normalizeCaption(text: string, max = 650) {
   const clean = String(text || '').replace(/\s+/g, ' ').trim();
   if (clean.length <= max) return clean;
   return clean.slice(0, max - 1).trim() + '...';
@@ -19,28 +19,39 @@ function normalizePlatform(platform: unknown) {
   return null;
 }
 
+function pickCleanTopic(rawTopic: string) {
+  const parts = String(rawTopic || '')
+    .split(/[\n,;|]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (!parts.length) return 'Praktische automatiseringstip voor ondernemers';
+  return parts[Math.floor(Math.random() * parts.length)].slice(0, 120);
+}
+
 export async function createAndSendBatchConcept(input: {
   brand: any;
   topic: string;
   platforms: string[];
   scheduleId?: string | null;
 }) {
+  const topic = pickCleanTopic(input.topic);
   const platforms = Array.from(new Set(input.platforms.map(normalizePlatform).filter(Boolean))) as string[];
   const safePlatforms = platforms.length ? platforms : ['linkedin', 'facebook', 'instagram'];
 
   const generated = await generateSocialCopy({
     brand: input.brand,
-    topic: input.topic,
+    topic,
     platforms: safePlatforms
   });
 
   const postsSource = Array.isArray(generated?.posts) ? generated.posts : [];
 
   const imagePrompt = [
-    `Modern professional social media image for ${input.brand.name || 'Nixos'}`,
-    `Topic: ${input.topic}`,
-    `Theme: AI automation, business workflows, efficiency, digital transformation`,
-    `Style: premium, clean, modern, realistic, strong composition, suitable for business social media`
+    `Modern professional business image for ${input.brand.name || 'Nixos'}`,
+    `Topic: ${topic}`,
+    `AI automation, workflow efficiency, digital business processes`,
+    `Premium clean style, modern office technology, realistic lighting`
   ].join('. ');
 
   const imageUrl = createFreeImageUrl(imagePrompt);
@@ -50,7 +61,7 @@ export async function createAndSendBatchConcept(input: {
     .insert({
       brand_id: input.brand.id,
       schedule_id: input.scheduleId || null,
-      topic: input.topic,
+      topic,
       image_prompt: imagePrompt,
       image_url: imageUrl,
       status: 'sent_for_approval'
@@ -67,7 +78,7 @@ export async function createAndSendBatchConcept(input: {
       brand_id: input.brand.id,
       schedule_id: input.scheduleId || null,
       platform,
-      caption: normalizeCaption(item.caption || `${input.topic}\n\n${input.brand.name || 'Nixos'} helpt bedrijven slimmer werken met AI, workflows en automatisering.`),
+      caption: normalizeCaption(item.caption || `${topic}\n\n${input.brand.name || 'Nixos'} helpt bedrijven slimmer werken met AI, workflows en automatisering.`),
       hashtags: Array.isArray(item.hashtags) ? item.hashtags : ['#AI', '#Automatisering', '#Workflow', '#Nixos'],
       image_prompt: imagePrompt,
       image_url: imageUrl,
