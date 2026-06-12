@@ -111,6 +111,33 @@ export default function SetupPage() {
         </form>
       </section>
 
+      <section className="grid">
+        <div className="card">
+          <h2>LinkedIn setup</h2>
+          <p>Gebruik voor Nixos je Company Page ID uit de admin-URL. Voor jouw pagina is de URN:</p>
+          <pre>urn:li:organization:116020186</pre>
+          <p>Benodigd in social_accounts: platform <strong>linkedin</strong>, account_external_id = bovenstaande URN, plus een LinkedIn OAuth token met publish rechten.</p>
+          <p><a href="https://www.linkedin.com/developers/apps" target="_blank">LinkedIn Developer Portal</a></p>
+          <p><a href="https://www.linkedin.com/company/116020186/admin/dashboard/" target="_blank">Jouw LinkedIn company admin</a></p>
+        </div>
+
+        <div className="card">
+          <h2>Facebook setup</h2>
+          <p>Gebruik de Facebook Page ID als account_external_id en een Page token voor publicatie.</p>
+          <p>Benodigd in social_accounts: platform <strong>facebook</strong>, account_external_id = Page ID.</p>
+          <p><a href="https://developers.facebook.com/tools/explorer/" target="_blank">Meta Graph API Explorer</a></p>
+          <p><a href="https://business.facebook.com/settings/pages" target="_blank">Meta Business Pages</a></p>
+        </div>
+
+        <div className="card">
+          <h2>Instagram setup</h2>
+          <p>Instagram publicatie werkt via een Instagram Business/Creator account dat gekoppeld is aan een Facebook Page.</p>
+          <p>Benodigd in social_accounts: platform <strong>instagram</strong>, account_external_id = Instagram Business User ID.</p>
+          <p><a href="https://developers.facebook.com/tools/explorer/" target="_blank">Meta Graph API Explorer</a></p>
+          <p><a href="https://business.facebook.com/settings/instagram-accounts" target="_blank">Meta Business Instagram accounts</a></p>
+        </div>
+      </section>
+
       <section className="card">
         <h2>Test: concept genereren</h2>
         <form action={generate}>
