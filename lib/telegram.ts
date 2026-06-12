@@ -34,6 +34,11 @@ function buildIdeaCaption(payload: { brand: any; idea: any; posts: any[] }) {
   return text.slice(0, 1024);
 }
 
+function fallbackImageUrl(brandName: string) {
+  const title = encodeURIComponent(`${brandName || 'Nixos'}\nAI automation`);
+  return `https://placehold.co/1024x1024/png?text=${title}`;
+}
+
 async function sendMessageWithMarkup(text: string, reply_markup?: any) {
   if (!token || !chatId) return;
 
@@ -47,16 +52,34 @@ async function sendMessageWithMarkup(text: string, reply_markup?: any) {
   return res.json();
 }
 
+async function sendPhotoByUrl(imageUrl: string, caption: string, reply_markup: any) {
+  if (!token || !chatId) return null;
+
+  const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, photo: imageUrl, caption, reply_markup })
+  });
+
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 async function sendPhotoUpload(imageUrl: string, caption: string, reply_markup: any) {
   if (!token || !chatId) return null;
 
   const imageRes = await fetch(imageUrl, { cache: 'no-store' });
   if (!imageRes.ok) throw new Error(`Image fetch failed: ${imageRes.status}`);
 
-  const contentType = imageRes.headers.get('content-type') || 'image/jpeg';
+  const contentType = imageRes.headers.get('content-type') || '';
   const bytes = await imageRes.arrayBuffer();
-  const blob = new Blob([bytes], { type: contentType });
+  const head = new TextDecoder().decode(bytes.slice(0, Math.min(bytes.byteLength, 200))).trim();
 
+  if (!contentType.startsWith('image/') || head.startsWith('{') || head.startsWith('[') || head.includes('Queue full')) {
+    throw new Error('Image provider returned non-image content');
+  }
+
+  const blob = new Blob([bytes], { type: contentType || 'image/jpeg' });
   const form = new FormData();
   form.append('chat_id', String(chatId));
   form.append('photo', blob, 'social-image.jpg');
@@ -100,10 +123,17 @@ export async function sendTelegramIdeaApproval(payload: {
     try {
       return await sendPhotoUpload(payload.idea.image_url, caption, reply_markup);
     } catch (error) {
-      const text = `${caption}\n\nAfbeelding:\n${payload.idea.image_url}`;
-      return sendMessageWithMarkup(text, reply_markup);
+      try {
+        return await sendPhotoByUrl(fallbackImageUrl(payload.brand.name), caption, reply_markup);
+      } catch (fallbackError) {
+        return sendMessageWithMarkup(`${caption}\n\nAI-afbeelding kon nu niet worden opgehaald.`, reply_markup);
+      }
     }
   }
 
-  return sendMessageWithMarkup(caption, reply_markup);
+  try {
+    return await sendPhotoByUrl(fallbackImageUrl(payload.brand.name), caption, reply_markup);
+  } catch (error) {
+    return sendMessageWithMarkup(caption, reply_markup);
+  }
 }
