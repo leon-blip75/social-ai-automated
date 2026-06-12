@@ -11,15 +11,23 @@ function findPost(posts: any[], platform: string) {
   return posts.find((p) => String(p.platform).toLowerCase() === platform) || null;
 }
 
+function cleanTopic(topic: string) {
+  return String(topic || '')
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)[0] || 'Slimmer werken met AI';
+}
+
 function buildIdeaCaption(payload: { brand: any; idea: any; posts: any[] }) {
   const linkedin = findPost(payload.posts, 'linkedin');
   const facebook = findPost(payload.posts, 'facebook');
   const instagram = findPost(payload.posts, 'instagram');
+  const topic = cleanTopic(payload.idea.topic);
 
   const text = [
     `Nieuw social voorstel voor ${payload.brand.name}`,
     ``,
-    `Onderwerp: ${payload.idea.topic}`,
+    `Onderwerp: ${topic}`,
     ``,
     `LinkedIn:`,
     cut(linkedin?.caption || '-', 220),
@@ -34,9 +42,10 @@ function buildIdeaCaption(payload: { brand: any; idea: any; posts: any[] }) {
   return text.slice(0, 1024);
 }
 
-function fallbackImageUrl(brandName: string) {
-  const title = encodeURIComponent(`${brandName || 'Nixos'}\nAI automation`);
-  return `https://placehold.co/1024x1024/png?text=${title}`;
+function fallbackImageUrl(brandName: string, topic: string) {
+  const shortTopic = cleanTopic(topic).slice(0, 55);
+  const title = encodeURIComponent(`${brandName || 'Nixos'}\n${shortTopic}`);
+  return `https://placehold.co/1024x1024/0f172a/e2e8f0/png?text=${title}`;
 }
 
 async function sendMessageWithMarkup(text: string, reply_markup?: any) {
@@ -107,6 +116,7 @@ export async function sendTelegramIdeaApproval(payload: {
   if (!token || !chatId) return;
 
   const caption = buildIdeaCaption(payload);
+  const fallback = fallbackImageUrl(payload.brand.name, payload.idea.topic);
   const reply_markup = {
     inline_keyboard: [
       [
@@ -124,7 +134,7 @@ export async function sendTelegramIdeaApproval(payload: {
       return await sendPhotoUpload(payload.idea.image_url, caption, reply_markup);
     } catch (error) {
       try {
-        return await sendPhotoByUrl(fallbackImageUrl(payload.brand.name), caption, reply_markup);
+        return await sendPhotoByUrl(fallback, caption, reply_markup);
       } catch (fallbackError) {
         return sendMessageWithMarkup(`${caption}\n\nAI-afbeelding kon nu niet worden opgehaald.`, reply_markup);
       }
@@ -132,7 +142,7 @@ export async function sendTelegramIdeaApproval(payload: {
   }
 
   try {
-    return await sendPhotoByUrl(fallbackImageUrl(payload.brand.name), caption, reply_markup);
+    return await sendPhotoByUrl(fallback, caption, reply_markup);
   } catch (error) {
     return sendMessageWithMarkup(caption, reply_markup);
   }
